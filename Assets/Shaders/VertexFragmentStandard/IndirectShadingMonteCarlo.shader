@@ -11,7 +11,7 @@ Shader "Custom/VertexFragmentStandard/IndirectShadingMonteCarlo"
         _Roughness( "Roughness", Range( 0,1 ) ) = 0.5
         [HideInInspector][Enum(None,0,Unity,1,Lambert_MonteCarlo,2)]_IndirectDiffuseType( "Indirect Diffuse", Float ) = 0.0
         [HideInInspector][Enum(None,0,Unity,1,GGX_MonteCarlo,2)]_IndirectSpecularType( "Indirect Specular", Float ) = 0.0
-        [HideInInspector][Enum(num1,1,num4,4,num8,8,num16,16,num32,32,num64,64,num128,128)]_ISSampleNum( "SampleNum", Int ) = 16
+        [HideInInspector][Enum(num4,4,num8,8,num16,16,num32,32,num64,64,num128,128,num256,256,num512,512,num1024,1024)]_ISSampleNum( "IS SampleNum", Float ) = 16
     }
 
     SubShader
@@ -40,7 +40,7 @@ Shader "Custom/VertexFragmentStandard/IndirectShadingMonteCarlo"
 // #pragma skip_variants SHADOWS_SOFT
 
 #pragma skip_variants FOG_LINEAR FOG_EXP FOG_EXP2
-#pragma  shader_feature __ INDIRECT_DIFFUSE_UNITY  INDIRECT_DIFFUSE_IS
+#pragma  shader_feature __ INDIRECT_DIFFUSE_UNITY  INDIRECT_DIFFUSE_LAMBERT_IS
 #pragma  shader_feature __ INDIRECT_SPECULAR_UNITY INDIRECT_SPECULAR_GGX_IS
 
             struct MyVertexInput
@@ -64,7 +64,7 @@ Shader "Custom/VertexFragmentStandard/IndirectShadingMonteCarlo"
 
             float4 _Color;
             float  _Roughness;
-            int    _ISSampleNum;
+            float  _ISSampleNum;
 
 #include "UnityCG.cginc"
 #include "UnityLightingCommon.cginc"
@@ -103,11 +103,10 @@ Shader "Custom/VertexFragmentStandard/IndirectShadingMonteCarlo"
 
             float3 CalcUnitySpecularDFG( float3 specular_color,
                                          float roughness,
-                                         float dot_v_h, float dot_n_v,
-                                         sampler2D lut_texture )
+                                         float dot_v_h, float dot_n_v )
             {    
                 float3 dfg_term2       = EnvDFGPolynomial( float3( 1.0f, 1.0f, 1.0f), roughness, dot_n_v );
-                float3 f_term          = calcFresnel( specular_color, dot_v_h, lut_texture );
+                float3 f_term          = calcFresnel( specular_color, dot_v_h );
 
                 return f_term * dfg_term2;
             }
@@ -236,12 +235,12 @@ Shader "Custom/VertexFragmentStandard/IndirectShadingMonteCarlo"
     #if ( INDIRECT_DIFFUSE_UNITY )
                 float3 indirect_diffuse_lighting =
                     ShadeSH9( float4( world_bump_normal, 1.0f ) );
-    #elif ( INDIRECT_DIFFUSE_IS )
+    #elif ( INDIRECT_DIFFUSE_LAMBERT_IS )
                 float3 indirect_diffuse_lighting =
                     IntegrateLambertDiffuseIBLRef( UNITY_PASS_TEXCUBE( unity_SpecCube0 ),
-                                                    probeHDR0,
-                                                    world_bump_normal,
-                                                    sampleCount );
+                                                   probeHDR0,
+                                                   world_bump_normal,
+                                                   sampleCount );
     #else
                 float3 indirect_diffuse_lighting = float3( 0.0f, 0.0f, 0.0f );
     #endif

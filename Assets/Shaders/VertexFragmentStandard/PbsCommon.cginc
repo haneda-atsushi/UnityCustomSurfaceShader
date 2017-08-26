@@ -4,67 +4,6 @@
 //
 //----------------------------------------------------------------------------------------------------
 
-//----------------------------------------------------------------------------------------------------
-//
-// BRDF Explorer
-//
-//----------------------------------------------------------------------------------------------------
-
-#define   MATH_PI     ( 3.141592f )
-#define   INV_MATH_PI ( 1.0f / 3.141592f )
-
-float3 f_schlick( float3 f0, float u )
-{
-    return f0 + ( float3( 1.0, 1.0, 1.0 ) - f0 ) * pow( 1 - u, 5 );
-}
-
-float d_blinn_phong( float3 world_normal, float3 world_half_dir, float alpha_2 )
-{
-    float n = 2.0 / alpha_2 - 2.0;
-    float D = pow( max( 0, dot( world_normal, world_half_dir ) ), n );
-
-    return D;
-}
-
-float d_norm_blinn_phong( float3 world_normal, float3 world_half_dir, float alpha_2 )
-{
-    float D     = d_blinn_phong( world_normal, world_half_dir, alpha_2 );
-    float n     = 2.0 / alpha_2 - 2.0;
-    float scale = 0.5f * INV_MATH_PI * ( 2.0 + n );
-
-    return ( D * scale );
-}
-
-float d_GGX( float alpha, float cos_n_h )
-{
-    float term0 = alpha * INV_MATH_PI;
-    float term1 = cos_n_h *  cos_n_h * ( alpha - 1 ) + 1.0;
-    float term2 = term1 * term1;
-
-    return term0 / term2;
-}
-
-float calcDistrib( sampler2D lut_texture, float dot_n_h )
-{
-    float2 uv     = float2( clamp( dot_n_h, 0.0f, 1.0f), 0.0f );
-    float distrib = tex2D( lut_texture, uv ).g;
-
-    return distrib;
-}
-
-float g1( float dot_n_w, float k )
-{
-    return 1.0 / ( dot_n_w * ( 1.0 - k ) + k );
-}
-
-float v_shlick_ggx( float alpha, float dot_n_l, float dot_n_v )
-{
-    float k = 0.5 * alpha;
-    return g1( dot_n_l, k ) * g1( dot_n_v, k );
-}
-
-//----------------------------------------------------------------------------------------------------
-
 // Analytical DFG Term for IBL
 // https://knarkowicz.wordpress.com/2014/12/27/analytical-dfg-term-for-ibl/
 float3 EnvDFGPolynomial( float3 specularColor, float roughness, float ndotv )
@@ -98,104 +37,10 @@ float3 EnvDFGPolynomial( float3 specularColor, float roughness, float ndotv )
 
 //----------------------------------------------------------------------------------------------------
 //
-// Specular IBL IS ( Substance Player : pbr_ibl.glsl )
+// From UnityImageBasedLighting.cginc
+//     Unity built-in shader source. Copyright (c) 2016 Unity Technologies. MIT license (see license.txt)
 //
 //----------------------------------------------------------------------------------------------------
-
-#define M_PI       3.14159265359f                     
-#define M_INV_PI   0.31830988618379067153776752674503f
-#define M_INV_LOG2 1.4426950408889634073599246810019f 
-
-#define vanDerCorputMapWidth    256
-#define vanDerCorputMapHeight     4
-#define nbSamples                16
-
-float normal_distrib( float ndh, float Roughness )
-{
-    // use GGX / Trowbridge-Reitz, same as Disney and Unreal 4
-    // cf http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf p3
-    float  alpha = Roughness * Roughness;
-    float  tmp   = alpha / max( 1e-8, ( ndh*ndh*( alpha*alpha - 1.0 ) + 1.0 ) );
-    return ( tmp * tmp * M_INV_PI );
-}
-
-float probabilityGGX( float ndh, float vdh, float Roughness )
-{
-    return normal_distrib( ndh, Roughness ) * ndh / ( 4.0 * vdh );
-}
-
-/*
-float distortion( float3 Wn )
-{
-    // Computes the inverse of the solid angle of the (differential) pixel in
-    // the environment map pointed at by Wn
-    float sinT = sqrt( 1.0f - Wn.y * Wn.y );
-    return sinT;
-}
-
-float computeLOD( float3 Ln,
-                  float  p,
-                  float  maxLod )
-{
-    float lod_level = 
-        ( maxLod - 1.5 ) - 0.5f * ( log( float( nbSamples ) ) + log( p * distortion( Ln ) ) );
-    return max( 0.0, lod_level * M_INV_LOG2 );
-}
-
-float3 samplePanoramicLOD( sampler2D env_map, float3 dir, float lod, float4 hdr_param )
-{
-    float n = length( dir.xz );
-    float2 pos = float2( ( n>0.0000001 ) ? dir.x / n : 0.0, dir.y );
-    pos = acos( pos )*M_INV_PI;
-    pos.x = ( dir.z > 0.0 ) ? pos.x*0.5 : 1.0 - ( pos.x*0.5 );
-    pos.y = 1.0 - pos.y;
-
-    float4 uv   = float4( pos.x, pos.y, 0.0f, lod );
-    float4 rgbm = tex2Dlod( env_map, uv );
-
-    float3 hdr_color = DecodeHDR( rgbm, hdr_param );
-
-    return hdr_color;
-}
-*/
-
-void computeSamplingFrame( in float3 iFS_Tangent, in float3 iFS_Binormal, in float3 fixedNormalWS,
-                           out float3 Tp, out float3 Bp )
-{
-    Tp = normalize( iFS_Tangent
-                    - fixedNormalWS * dot( iFS_Tangent, fixedNormalWS ) );
-    Bp = normalize( iFS_Binormal
-                    - fixedNormalWS * dot( iFS_Binormal, fixedNormalWS )
-                    - Tp*dot( iFS_Binormal, Tp ) );
-}
-
-/*
-//- Return the i*th* number from the Van Der Corput sequence.
-float VanDerCorput( sampler2D vanDerCorputMap,
-                    int i,
-                    int vanDerCorputMapWidth,
-                    int vanDerCorputMapHeight,
-                    int nbSamples)
-{
-    float xInVanDerCorputTex = (float(i)+0.5) / vanDerCorputMapWidth;
-    float yInVanDerCorputTex = 0.5 / vanDerCorputMapHeight; // First row pixel
-    return texture2D(vanDerCorputMap, vec2(xInVanDerCorputTex, yInVanDerCorputTex)).x;
-}
-
-//- Return the i*th* couple from the Hammerlsey sequence.
-//- nbSample is required to get an uniform distribution. nbSample has to be less than 1024.
-vec2 hammersley2D( sampler2D vanDerCorputMap,
-                   int i,
-                   int vanDerCorputMapWidth,
-                   int vanDerCorputMapHeight,
-                   int nbSamples )
-{
-    return vec2(
-    (float(i)+0.5) / float(nbSamples),
-    VanDerCorput(vanDerCorputMap, i, vanDerCorputMapWidth, vanDerCorputMapHeight, nbSamples)
-    );
-}
-*/
 
 //-----------------------------------------------------------------------------
 // Sample generator
@@ -248,7 +93,6 @@ float2 InitRandom( float2 input )
     return r;
 }
 
-
 float3 calcFresnel( in float3 specAlbedo, in float3 h, in float3 l )
 {
     float lDotH = saturate( dot( l, h ) );
@@ -267,14 +111,6 @@ float3 calcFresnel( float vdh, float3 F0 )
 inline float calcPow5( float x )
 {
     return x*x * x*x * x;
-}
-
-float3 calcFresnel( float3 specular_color, float dot_v_h,
-                    sampler2D lut_texture )
-{
-    float3 f_term = f_schlick( specular_color, dot_v_h );
-
-    return f_term;
 }
 
 void GetLocalFrame( float3 N, out float3 tangentX, out float3 tangentY )
@@ -420,6 +256,7 @@ void ImportanceSampleCosDir( float2 u,
     L = tangentX * L.x + tangentY * L.y + N * L.z;
 }
 
+// weightOverPdf return the weight (without the diffuseAlbedo term) over pdf. diffuseAlbedo term must be apply by the caller.
 void ImportanceSampleLambert(
     float2 u,
     float3 N,
@@ -446,6 +283,7 @@ void ImportanceSampleLambert(
     weightOverPdf = 1.0f;
 }
 
+// Ref: Moving Frostbite to PBR (Appendix A)
 float3 IntegrateLambertDiffuseIBLRef( UNITY_ARGS_TEXCUBE( tex ),
                                       float4 texHdrParam,
                                       float3 N,
@@ -487,3 +325,5 @@ float3 IntegrateLambertDiffuseIBLRef( UNITY_ARGS_TEXCUBE( tex ),
 
     return diffuseLighting;
 }
+
+// ----------------------------------------------------------------------------	
