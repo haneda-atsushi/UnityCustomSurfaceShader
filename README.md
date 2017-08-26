@@ -15,7 +15,9 @@ Several custom shader examples for Unity.
 <img src="https://github.com/haneda-atsushi/UnityCustomSurfaceShader/blob/master/ScreenShots/vertex_fragment.PNG" width="720"/>
 
 ### (Type3) Vertex and fragment shaders for custom standard shading
+* Custom standard shading using unity builtin shader functions.
+* Importance sampling for lambert IBL and GGX IBL.
 <img src="https://github.com/haneda-atsushi/UnityCustomSurfaceShader/blob/master/ScreenShots/vertex_frag_standard.PNG" width="720"/>
 
 # Recommended system requirements
-* Unity 2017.1
+* Unity 2017.1.0f3
